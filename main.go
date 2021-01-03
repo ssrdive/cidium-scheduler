@@ -18,7 +18,7 @@ func main() {
 	password := flag.String("password", "password", "Password to authenticate")
 	flag.Parse()
 
-	gocron.Every(1).Day().At("01:00").Do(runDayEnd, *dsn, *from, *password)
+	gocron.Every(1).Day().At("00:45").Do(runDayEnd, *dsn, *from, *password)
 
 	<-gocron.Start()
 }
@@ -97,10 +97,10 @@ func openDB(dsn string) (*sql.DB, error) {
 }
 
 func sendEmail(from, to, password, subject, body string) error {
-
+	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n";
 	msg := "From: " + from + "\n" +
 		"To: " + to + "\n" +
-		"Subject: " + subject + "\n\n" +
+		"Subject: " + subject + "\n" + mime +
 		body
 
 	err := smtp.SendMail("smtp.gmail.com:587",
