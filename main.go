@@ -15,7 +15,7 @@ import (
 func main() {
 	dsn := flag.String("dsn", "user:password@tcp(host)/database_name?parseTime=true", "MySQL data source name")
 	from := flag.String("from", "agrivestlimited@gmail.com", "Address to send emails from")
-	password := flag.String("password", "password", "Password of to authenticate")
+	password := flag.String("password", "password", "Password to authenticate")
 	flag.Parse()
 
 	gocron.Every(1).Day().At("01:00").Do(runDayEnd, *dsn, *from, *password)
@@ -46,7 +46,7 @@ func runDayEnd(dsn, from, password string) {
 
 	today := time.Now().Format("2006-01-02")
 
-	uConts, elapsed, err := sprinter.Run("2022-11-15", "", false, tx)
+	uConts, elapsed, err := sprinter.Run(today, "", false, tx)
 	if err != nil {
 		tx.Rollback()
 		return
