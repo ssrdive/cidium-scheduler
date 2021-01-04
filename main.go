@@ -121,10 +121,10 @@ func openDB(dsn string) (*sql.DB, error) {
 }
 
 func sendEmail(from, to, password, subject, body string) error {
-
+	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	msg := "From: " + from + "\n" +
 		"To: " + to + "\n" +
-		"Subject: " + subject + "\n\n" +
+		"Subject: " + subject + "\n" + mime +
 		body
 
 	err := smtp.SendMail("smtp.gmail.com:587",
