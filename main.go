@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"log"
 	"net/smtp"
+	"os"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -16,14 +18,15 @@ func main() {
 	dsn := flag.String("dsn", "user:password@tcp(host)/database_name?parseTime=true", "MySQL data source name")
 	from := flag.String("from", "agrivestlimited@gmail.com", "Address to send emails from")
 	password := flag.String("password", "password", "Password to authenticate")
+	logPath := flag.String("logpath", "/var/www/agrivest.app/logs/", "Path to create or alter log files")
 	flag.Parse()
 
-	gocron.Every(1).Day().At("01:00").Do(runDayEnd, *dsn, *from, *password)
+	gocron.Every(1).Day().At("01:00").Do(runDayEnd, *dsn, *from, *password, *logPath)
 
 	<-gocron.Start()
 }
 
-func runDayEnd(dsn, from, password string) {
+func runDayEnd(dsn, from, password, logPath string) {
 	db, err := openDB(dsn)
 	if err != nil {
 		fmt.Println(err)
@@ -46,11 +49,23 @@ func runDayEnd(dsn, from, password string) {
 
 	today := time.Now().Format("2006-01-02")
 
+	dayEndLogFile, err := openLogFile(logPath + today + "_day_end.log")
+	if err != nil {
+		fmt.Println("Failed to open receipt log file")
+		os.Exit(1)
+	}
+	dayEndLog := log.New(dayEndLogFile, "", log.Ldate|log.Ltime)
+
+	dayEndLog.Println("Starting day end program")
+
 	uConts, elapsed, err := sprinter.Run(today, "", false, tx)
 	if err != nil {
+		dayEndLog.Printf("Day end failed with error: %v\n", err)
 		tx.Rollback()
 		return
 	}
+	dayEndLog.Printf("Day end succes with processed contracts %+v\n", uConts)
+
 	emailHTML := "<html><head><style> body { font-family: arial, sans-serif; } table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #dddddd; text-align: left; padding: 8px; } </style></head><body>"
 	emailHTML = emailHTML + "<h2 style='font-family: Arial, Helvetica, sans-serif;'>Day end runs " + today + "</h2>"
 	emailHTML = emailHTML + "<p style='font-family: Arial, Helvetica, sans-serif;'>Program completed in " + fmt.Sprintf("%f", elapsed.Seconds()) + " seconds</p>"
@@ -68,7 +83,16 @@ func runDayEnd(dsn, from, password string) {
 		emailHTML = emailHTML + "<tr><td>" + fmt.Sprintf("%d", contract.ContractID) + "</td>" + convertStatusCodeToHTML(contract.RecoveryStatus) + convertStatusCodeToHTML(contract.UpdatedRecoveryStatus) + "</tr>"
 	}
 	emailHTML = emailHTML + "</tbody></table></body></html>"
-	sendEmail(from, "shamal@randeepa.com, manuka.hapugoda@agrivest.lk, kularathna@agrivest.lk", password, "Day End Run Summary "+today, emailHTML)
+
+	dayEndLog.Println("Sending program run summary")
+
+	err = sendEmail(from, "shamal@randeepa.com, manuka.hapugoda@agrivest.lk, kularathna@agrivest.lk", password, "Day End Run Summary "+today, emailHTML)
+
+	if err != nil {
+		dayEndLog.Printf("Failed to send email %+v\n", err)
+		return
+	}
+	dayEndLog.Printf("Summary email sent.")
 }
 
 func convertStatusCodeToHTML(code int) string {
@@ -112,4 +136,8 @@ func sendEmail(from, to, password, subject, body string) error {
 	}
 
 	return nil
+}
+
+func openLogFile(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 }
