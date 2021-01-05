@@ -8,6 +8,7 @@ import (
 	"net/smtp"
 	"os"
 	"time"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jasonlvhit/gocron"
@@ -21,7 +22,7 @@ func main() {
 	logPath := flag.String("logpath", "/var/www/agrivest.app/logs/", "Path to create or alter log files")
 	flag.Parse()
 
-	gocron.Every(1).Day().At("01:00").Do(runDayEnd, *dsn, *from, *password, *logPath)
+	gocron.Every(1).Day().At("00:45").Do(runDayEnd, *dsn, *from, *password, *logPath)
 
 	<-gocron.Start()
 }
@@ -86,7 +87,8 @@ func runDayEnd(dsn, from, password, logPath string) {
 
 	dayEndLog.Println("Sending program run summary")
 
-	err = sendEmail(from, "shamal@randeepa.com, manuka.hapugoda@agrivest.lk, kularathna@agrivest.lk", password, "Day End Run Summary "+today, emailHTML)
+	toList := []string{"shamal@randeepa.com", "manuka.hapugoda@agrivest.lk", "kularathna@agrivest.lk"}
+	err = sendEmail(toList, from, password, "Day End Run Summary "+today, emailHTML)
 
 	if err != nil {
 		dayEndLog.Printf("Failed to send email %+v\n", err)
@@ -120,16 +122,17 @@ func openDB(dsn string) (*sql.DB, error) {
 	return db, err
 }
 
-func sendEmail(from, to, password, subject, body string) error {
+func sendEmail(to []string, from, password, subject, body string) error {
+	toHeader := strings.Join(to, ",")
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	msg := "From: " + from + "\n" +
-		"To: " + to + "\n" +
+		"To: " + toHeader + "\n" +
 		"Subject: " + subject + "\n" + mime +
 		body
 
 	err := smtp.SendMail("smtp.gmail.com:587",
 		smtp.PlainAuth("", from, password, "smtp.gmail.com"),
-		from, []string{to}, []byte(msg))
+		from, to, []byte(msg))
 
 	if err != nil {
 		return err
