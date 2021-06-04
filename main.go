@@ -87,7 +87,7 @@ func runDayEnd(dsn, from, password, logPath string) {
 
 	dayEndLog.Println("Sending program run summary")
 
-	toList := []string{"shamal@randeepa.com", "manuka.hapugoda@agrivest.lk", "kularathna@agrivest.lk", "psmfdo@gmail.com"}
+	toList := []string{"shamal@randeepa.com", "agrivest@randeepa.com", "psmfdo@gmail.com"}
 	err = sendEmail(toList, from, password, "Day End Run Summary "+today, emailHTML)
 
 	if err != nil {
