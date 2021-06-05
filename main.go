@@ -7,8 +7,8 @@ import (
 	"log"
 	"net/smtp"
 	"os"
-	"time"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jasonlvhit/gocron"
@@ -23,8 +23,91 @@ func main() {
 	flag.Parse()
 
 	gocron.Every(1).Day().At("00:45").Do(runDayEnd, *dsn, *from, *password, *logPath)
+	gocron.Every(1).Day().At("06:00").Do(sendCWAPendingList, *dsn, *from, *password)
 
 	<-gocron.Start()
+}
+
+func sendCWAPendingList(dsn, from, password string) {
+	db, err := openDB(dsn)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	stmt := `
+		SELECT C.id, DATEDIFF(NOW(), CST.transition_date) AS file_incomplete_for, U.name AS credit_officer, U2.name AS recovery_officer, C.customer_name, C.price
+		FROM contract C
+		LEFT JOIN contract_state CS ON CS.id = C.contract_state_id
+		LEFT JOIN contract_state_transition CST ON CST.to_contract_state_id = C.contract_state_id
+		LEFT JOIN user U ON U.id = C.credit_officer_id
+		LEFT JOIN user U2 on U2.id = C.recovery_officer_id
+		WHERE CS.state_id = 2
+		ORDER BY file_incomplete_for DESC
+	`
+	rows, err := db.Query(stmt)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer rows.Close()
+
+	emailHTML := "<html><head><style> body { font-family: arial, sans-serif; } table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #dddddd; text-align: left; padding: 8px; } </style></head><body>"
+	emailHTML = emailHTML + "<h2 style='font-family: Arial, Helvetica, sans-serif;'>Pending Contracts to be Completed</h2>"
+	emailHTML = emailHTML + `
+	<table>
+		<thead>
+			<th>ID</th>
+			<th>Days</th>
+			<th>Credit Officer</th>
+			<th>Recovery Officer</th>
+			<th>Customer Name</th>
+			<th>Price</th>
+		</thead>
+		<tbody>
+	`
+
+	for rows.Next() {
+		var id, creditOfficer, recoveryOfficer, customerName string
+		var fileIncompleteFor, price int
+
+		err = rows.Scan(&id, &fileIncompleteFor, &creditOfficer, &recoveryOfficer, &customerName, &price)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		emailHTML = emailHTML + fmt.Sprintf(`
+			<tr>
+				<td>%s</td>
+				%s%d</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td>%d</td>
+			</tr>
+		`, id, getTrColorHTMLforDates(fileIncompleteFor), fileIncompleteFor, creditOfficer, recoveryOfficer, customerName, price)
+	}
+
+	emailHTML = emailHTML + "</tbody></table></body></html>"
+
+	toList := []string{"shamal@randeepa.com", "agrivest@randeepa.com"}
+	err = sendEmail(toList, from, password, "Pending Contracts to be Completed", emailHTML)
+
+	if err != nil {
+		fmt.Printf("Failed to send email %+v\n", err)
+		return
+	}
+}
+
+func getTrColorHTMLforDates(days int) string {
+	if days <= 7 {
+		return "<td style='background-color: #199c31; color: #FFFFFF;'>"
+	} else if days <= 14 {
+		return "<td style='background-color: #5e5717; color: #FFFFFF;'>"
+	} else {
+		return "<td style='background-color: #f51111; color: #FFFFFF;'>"
+	}
 }
 
 func runDayEnd(dsn, from, password, logPath string) {
