@@ -91,7 +91,7 @@ func sendCWAPendingList(dsn, from, password string) {
 
 	emailHTML = emailHTML + "</tbody></table></body></html>"
 
-	toList := []string{"shamal@randeepa.com", "agrivest@randeepa.com"}
+	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "tilak@randeepa.com", "kularathna@agrivest.lk", "nayan.karunanayaka@randeepa.com", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk"}
 	err = sendEmail(toList, from, password, "Pending Contracts to be Completed", emailHTML)
 
 	if err != nil {
@@ -170,7 +170,7 @@ func runDayEnd(dsn, from, password, logPath string) {
 
 	dayEndLog.Println("Sending program run summary")
 
-	toList := []string{"shamal@randeepa.com", "agrivest@randeepa.com", "psmfdo@gmail.com"}
+	toList := []string{"shamal@randeepa.com", "psmfdo@gmail.com", "dimuthu@randeepa.com", "tilak@randeepa.com", "kularathna@agrivest.lk", "nayan.karunanayaka@randeepa.com", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk"}
 	err = sendEmail(toList, from, password, "Day End Run Summary "+today, emailHTML)
 
 	if err != nil {
