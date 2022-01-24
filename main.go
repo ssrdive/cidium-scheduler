@@ -24,8 +24,81 @@ func main() {
 
 	gocron.Every(1).Day().At("00:45").Do(runDayEnd, *dsn, *from, *password, *logPath)
 	gocron.Every(1).Day().At("06:00").Do(sendCWAPendingList, *dsn, *from, *password)
+	gocron.Every(1).Day().At("06:00").Do(sendFCPendingList, *dsn, *from, *password)
 
 	<-gocron.Start()
+}
+
+func sendFCPendingList(dsn, from, password string) {
+	db, err := openDB(dsn)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	stmt := `
+		SELECT C.id, DATEDIFF(NOW(), CST.transition_date) AS do_not_sent_for, U.name AS credit_officer, U2.name AS recovery_officer, C.customer_name, C.price
+		FROM contract C
+		LEFT JOIN contract_state CS ON CS.id = C.contract_state_id
+		LEFT JOIN contract_state_transition CST ON CST.to_contract_state_id = C.contract_state_id
+		LEFT JOIN user U ON U.id = C.credit_officer_id
+		LEFT JOIN user U2 on U2.id = C.recovery_officer_id
+		WHERE CS.state_id = 3
+		ORDER BY do_not_sent_for DESC
+	`
+	rows, err := db.Query(stmt)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer rows.Close()
+
+	emailHTML := "<html><head><style> body { font-family: arial, sans-serif; } table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #dddddd; text-align: left; padding: 8px; } </style></head><body>"
+	emailHTML = emailHTML + "<h2 style='font-family: Arial, Helvetica, sans-serif;'>Pending DOs To Be Issued</h2>"
+	emailHTML = emailHTML + `
+	<table>
+		<thead>
+			<th>ID</th>
+			<th>Days</th>
+			<th>Credit Officer</th>
+			<th>Recovery Officer</th>
+			<th>Customer Name</th>
+			<th>Price</th>
+		</thead>
+		<tbody>
+	`
+
+	for rows.Next() {
+		var id, creditOfficer, recoveryOfficer, customerName string
+		var doNotIssuedFor, price int
+
+		err = rows.Scan(&id, &doNotIssuedFor, &creditOfficer, &recoveryOfficer, &customerName, &price)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		emailHTML = emailHTML + fmt.Sprintf(`
+			<tr>
+				<td>%s</td>
+				%s%d</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td>%s</td>
+				<td>%d</td>
+			</tr>
+		`, id, getTrColorHTMLforDates(doNotIssuedFor), doNotIssuedFor, creditOfficer, recoveryOfficer, customerName, price)
+	}
+
+	emailHTML = emailHTML + "</tbody></table></body></html>"
+
+	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk", "rasika.senadheera@agrivest.lk", "dulshan.dishantha@agrivest.lk"}
+	err = sendEmail(toList, from, password, "Pending DOs To Be Issued", emailHTML)
+
+	if err != nil {
+		fmt.Printf("Failed to send email %+v\n", err)
+		return
+	}
 }
 
 func sendCWAPendingList(dsn, from, password string) {
@@ -91,7 +164,7 @@ func sendCWAPendingList(dsn, from, password string) {
 
 	emailHTML = emailHTML + "</tbody></table></body></html>"
 
-	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "tilak@randeepa.com", "kularathna@agrivest.lk", "nayan.karunanayaka@randeepa.com", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk"}
+	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk", "rasika.senadheera@agrivest.lk", "dulshan.dishantha@agrivest.lk"}
 	err = sendEmail(toList, from, password, "Pending Contracts to be Completed", emailHTML)
 
 	if err != nil {
@@ -170,7 +243,7 @@ func runDayEnd(dsn, from, password, logPath string) {
 
 	dayEndLog.Println("Sending program run summary")
 
-	toList := []string{"shamal@randeepa.com", "psmfdo@gmail.com", "dimuthu@randeepa.com", "tilak@randeepa.com", "kularathna@agrivest.lk", "nayan.karunanayaka@randeepa.com", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk"}
+	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk", "rasika.senadheera@agrivest.lk", "dulshan.dishantha@agrivest.lk"}
 	err = sendEmail(toList, from, password, "Day End Run Summary "+today, emailHTML)
 
 	if err != nil {
