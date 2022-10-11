@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/tls"
 	"database/sql"
 	"flag"
 	"fmt"
 	"log"
+	"net"
+	"net/mail"
 	"net/smtp"
 	"os"
 	"strings"
@@ -17,7 +20,7 @@ import (
 
 func main() {
 	dsn := flag.String("dsn", "user:password@tcp(host)/database_name?parseTime=true", "MySQL data source name")
-	from := flag.String("from", "agrivestlimited@gmail.com", "Address to send emails from")
+	from := flag.String("from", "agrivest.mailer@randeepa.cloud", "Address to send emails from")
 	password := flag.String("password", "password", "Password to authenticate")
 	logPath := flag.String("logpath", "/var/www/agrivest.app/logs/", "Path to create or alter log files")
 	flag.Parse()
@@ -92,7 +95,7 @@ func sendFCPendingList(dsn, from, password string) {
 
 	emailHTML = emailHTML + "</tbody></table></body></html>"
 
-	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk", "rasika.senadheera@agrivest.lk", "dulshan.dishantha@agrivest.lk"}
+	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "samanthi.chandrika@randeepa.com", "lehan.randesh@randeepa.com", "chandika.prasad@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "dumeshika.aluvihare@agrivest.lk"}
 	err = sendEmail(toList, from, password, "Pending DOs To Be Issued", emailHTML)
 
 	if err != nil {
@@ -164,7 +167,7 @@ func sendCWAPendingList(dsn, from, password string) {
 
 	emailHTML = emailHTML + "</tbody></table></body></html>"
 
-	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk", "rasika.senadheera@agrivest.lk", "dulshan.dishantha@agrivest.lk"}
+	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "samanthi.chandrika@randeepa.com", "lehan.randesh@randeepa.com", "chandika.prasad@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "dumeshika.aluvihare@agrivest.lk"}
 	err = sendEmail(toList, from, password, "Pending Contracts to be Completed", emailHTML)
 
 	if err != nil {
@@ -208,7 +211,7 @@ func runDayEnd(dsn, from, password, logPath string) {
 
 	dayEndLogFile, err := openLogFile(logPath + today + "_day_end.log")
 	if err != nil {
-		fmt.Println("Failed to open receipt log file")
+		fmt.Println("Failed to open log file")
 		os.Exit(1)
 	}
 	dayEndLog := log.New(dayEndLogFile, "", log.Ldate|log.Ltime)
@@ -243,7 +246,7 @@ func runDayEnd(dsn, from, password, logPath string) {
 
 	dayEndLog.Println("Sending program run summary")
 
-	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "kumara.nandana@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "isanka.lakmal@agrivest.lk", "lansakara.sumith@agrivest.lk", "aruna.kumara@agrivest.lk", "dumeshika.aluvihare@agrivest.lk", "lakshman.atthanayaka@agrivest.lk", "jeewaka.chathuranga@agrivest.lk", "rasika.senadheera@agrivest.lk", "dulshan.dishantha@agrivest.lk"}
+	toList := []string{"shamal@randeepa.com", "dimuthu@randeepa.com", "samanthi.chandrika@randeepa.com", "lehan.randesh@randeepa.com", "chandika.prasad@randeepa.com", "kularathna@agrivest.lk", "minura.maduwantha@agrivest.lk", "tharushika.samarathunga@agrivest.lk", "dumeshika.aluvihare@agrivest.lk"}
 	err = sendEmail(toList, from, password, "Day End Run Summary "+today, emailHTML)
 
 	if err != nil {
@@ -279,20 +282,70 @@ func openDB(dsn string) (*sql.DB, error) {
 }
 
 func sendEmail(to []string, from, password, subject, body string) error {
-	toHeader := strings.Join(to, ",")
-	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	msg := "From: " + from + "\n" +
-		"To: " + toHeader + "\n" +
-		"Subject: " + subject + "\n" + mime +
-		body
+	fromAddress := mail.Address{Name: "Agrivest Mailer", Address: from}
 
-	err := smtp.SendMail("smtp.gmail.com:587",
-		smtp.PlainAuth("", from, password, "smtp.gmail.com"),
-		from, to, []byte(msg))
+	headers := make(map[string]string)
+	headers["From"] = fromAddress.String()
+	headers["To"] = strings.Join(to, ",")
+	headers["MIME-version"] = "1.0"
+	headers["Content-Type"] = "text/html; charset=\"UTF-8\""
+	headers["Subject"] = subject
 
+	message := ""
+	for k, v := range headers {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	}
+	message += "\r\n" + body
+
+	servername := "smtp.zoho.com:465"
+	host, _, _ := net.SplitHostPort(servername)
+	auth := smtp.PlainAuth("", from, password, host)
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		ServerName:         host,
+	}
+
+	conn, err := tls.Dial("tcp", servername, tlsConfig)
 	if err != nil {
 		return err
 	}
+
+	c, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return err
+	}
+
+	if err = c.Auth(auth); err != nil {
+		return err
+	}
+
+	if err = c.Mail(from); err != nil {
+		return err
+	}
+
+	for _, toAddress := range to {
+		if err = c.Rcpt(toAddress); err != nil {
+			return err
+		}
+	}
+
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write([]byte(message))
+	if err != nil {
+		return err
+	}
+
+	err = w.Close()
+	if err != nil {
+		return err
+	}
+
+	c.Quit()
 
 	return nil
 }
