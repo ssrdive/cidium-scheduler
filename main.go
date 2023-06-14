@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"github.com/ssrdive/mysequel"
 	"log"
+	"math"
 	"net"
 	"net/mail"
 	"net/smtp"
@@ -28,6 +30,7 @@ func main() {
 	gocron.Every(1).Day().At("00:45").Do(runDayEnd, *dsn, *from, *password, *logPath)
 	gocron.Every(1).Day().At("06:00").Do(sendCWAPendingList, *dsn, *from, *password)
 	gocron.Every(1).Day().At("06:00").Do(sendFCPendingList, *dsn, *from, *password)
+	gocron.Every(1).Day().At("01:15").Do(calculateDefault, *dsn, *logPath)
 
 	<-gocron.Start()
 }
@@ -254,6 +257,91 @@ func runDayEnd(dsn, from, password, logPath string) {
 		return
 	}
 	dayEndLog.Printf("Summary email sent.")
+}
+
+func calculateDefault(dsn, logPath string) {
+	db, err := openDB(dsn)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+			return
+		}
+		_ = tx.Commit()
+		defer db.Close()
+	}()
+
+	type ContractArrears struct {
+		ContractID int
+		DueAmount  float64
+	}
+
+	today := time.Now().Format("2006-01-02")
+
+	defaultAdderLogFile, err := openLogFile(logPath + today + "_default_adder.log")
+	if err != nil {
+		fmt.Println("Failed to open log file")
+		os.Exit(1)
+	}
+	defaultAdderLog := log.New(defaultAdderLogFile, "", log.Ldate|log.Ltime)
+
+	defaultAdderLog.Println("Starting default adder program")
+
+	// load contracts from default_view
+	var arrearsContracts []ContractArrears
+	err = mysequel.QueryToStructs(&arrearsContracts, tx, "SELECT contract_id, due_amount FROM view_contract_arrears_for_default")
+	if err != nil {
+		defaultAdderLog.Printf("Failed to load arrears list %+v\n", err)
+		return
+	}
+
+	var defaultForDay map[int]float64
+	defaultForDay = make(map[int]float64)
+
+	const DEFAULT_RATE_PER_DAY = 0.0986
+
+	for _, contract := range arrearsContracts {
+		defaultValue := (contract.DueAmount * DEFAULT_RATE_PER_DAY) / 100
+		defaultForDay[contract.ContractID] = defaultValue
+		defaultAdderLog.Printf("Contract: %d\tDefault Amount: %f\tDefault Per Day: %f", contract.ContractID,
+			contract.DueAmount, defaultValue)
+
+		var defaultEntryPresent int32
+		err = tx.QueryRow("SELECT COUNT(*) AS entry_present FROM contract_default WHERE contract_id = ?", contract.ContractID).Scan(&defaultEntryPresent)
+
+		if defaultEntryPresent == 1 {
+			_, err = tx.Exec("UPDATE contract_default SET amount = amount + ? WHERE contract_id = ?", math.Round((defaultValue)*100)/100, contract.ContractID)
+			if err != nil {
+				defaultAdderLog.Printf("Failed to add default entry for %d\n", contract.ContractID)
+			} else {
+				defaultAdderLog.Printf("Default value successfully incremented for %d\n", contract.ContractID)
+			}
+		} else {
+			_, err = mysequel.Insert(mysequel.Table{
+				TableName: "contract_default",
+				Columns:   []string{"contract_id", "amount"},
+				Vals:      []interface{}{contract.ContractID, math.Round((defaultValue)*100) / 100},
+				Tx:        tx,
+			})
+
+			if err != nil {
+				defaultAdderLog.Printf("Failed to add first time default entry for %d\n", contract.ContractID)
+			} else {
+				defaultAdderLog.Printf("Default value successfully inserted for %d\n", contract.ContractID)
+			}
+		}
+	}
+
+	defaultAdderLog.Printf("Default adder program complete")
 }
 
 func convertStatusCodeToHTML(code int) string {

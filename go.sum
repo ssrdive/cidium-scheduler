@@ -20,6 +20,8 @@ github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1Cpa
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/ssrdive/mysequel v0.0.0-20200607152047-bfb6d81da001 h1:sTdrxSj5xY2tQCibC/PyPSLkE98D/09iWgtfcR4wdJ8=
 github.com/ssrdive/mysequel v0.0.0-20200607152047-bfb6d81da001/go.mod h1:3ZsmS8Ub2gYX5pVV51Y+mRO2Y7gjjlBU/lQn/P0/1YA=
+github.com/ssrdive/mysequel v1.0.0 h1:yJwx1B3Gz5lo5fKiQPjEtcUDkgOoR8qW73mZQHPZqxE=
+github.com/ssrdive/mysequel v1.0.0/go.mod h1:3ZsmS8Ub2gYX5pVV51Y+mRO2Y7gjjlBU/lQn/P0/1YA=
 github.com/ssrdive/sprinter v0.0.0-20201231083330-a36314b377f7 h1:HGzuLMqFjDkwKWtZGFXPtC8iKCbzqZTW4wWrhI3Pc84=
 github.com/ssrdive/sprinter v0.0.0-20201231083330-a36314b377f7/go.mod h1:97CNQTK2ynSBcV2If6lnqRPgcsQ3WlSrNMwfXPa2gBY=
 github.com/ssrdive/sprinter v0.0.0-20210103111756-9dddfd32ca01 h1:q0XOXyZFHFDyN/BnRC/DCLgZ5HUeYiSiHDEOCpePvPs=
